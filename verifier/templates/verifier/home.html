@@ -748,17 +748,61 @@
         });
       }
 
+      function buildBarChart(canvas, label, values) {
+        if (!canvas) return;
+
+        new Chart(canvas, {
+          type: "bar",
+          data: {
+            labels: [
+              "Entailment",
+              "Similarity",
+              "RAGAS Faithfulness",
+              "RAGAS Relevancy",
+              "DeepEval Faithfulness",
+              "DeepEval Relevancy"
+            ],
+            datasets: [{
+              label: label,
+              data: [
+                values.entailment,
+                values.similarity,
+                values.ragas_faithfulness,
+                values.ragas_answer_relevancy,
+                values.deepeval_faithfulness,
+                values.deepeval_answer_relevancy
+              ],
+              borderWidth: 1
+            }]
+          },
+          options: {
+            indexAxis: "y",
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false }
+            },
+            scales: {
+              x: {
+                min: 0,
+                max: 1
+              }
+            }
+          }
+        });
+      }
+
       comparisonRuns.forEach(function (run) {
         const overviewCanvas = document.getElementById(run.id);
         buildRadarChart(overviewCanvas, run.label, run.values);
 
         const detailCanvas = document.getElementById(run.detailId);
-        buildRadarChart(detailCanvas, run.label + " Detail", run.values);
+        buildBarChart(detailCanvas, run.label + " Detail", run.values);
       });
 
       {% if run and metrics %}
       const singleCanvas = document.getElementById("singleResultChart");
-      buildRadarChart(singleCanvas, "Current Run", {
+      buildBarChart(singleCanvas, "Current Run", {
         entailment: {{ metrics.best_entailment|default_if_none:0 }},
         similarity: {{ metrics.best_similarity|default_if_none:0 }},
         ragas_faithfulness: {% if metrics.ragas_faithfulness != None %}{{ metrics.ragas_faithfulness }}{% else %}0{% endif %},
