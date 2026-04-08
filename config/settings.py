@@ -30,7 +30,6 @@ DEBUG = os.environ.get("DEBUG", "False") == "True"
 
 ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", ".onrender.com").split(",")
 
-django-insecure-_0758^v7@2#-%kda$p^c9a&0_qzia-2iy&c5fa&4d$&@(9a2oq
 
 # Application definition
 
