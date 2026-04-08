@@ -79,7 +79,10 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
-    'default':  dj_database_url.config(default='sqlite:///db.sqlite3')
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    }
 }
 
 
@@ -134,3 +137,5 @@ MEDIA_ROOT = Path(BASE_DIR) / 'media'
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'verifier:home'
 LOGOUT_REDIRECT_URL = 'login'
+
+CSRF_TRUSTED_ORIGINS = os.environ.get("CSRF_TRUSTED_ORIGINS", "https://hallucicheck.onrender.com").split(",")
