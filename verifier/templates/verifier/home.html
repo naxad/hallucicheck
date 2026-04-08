@@ -29,7 +29,7 @@
       </button>
     </form>
   </div>
-  
+
   <div class="container">
 
     <header class="header hero-header">
@@ -687,6 +687,7 @@
         {% for item in comparison_runs %}
         {
           id: "comparisonChart{{ forloop.counter }}",
+          detailId: "detailChart{{ forloop.counter }}",
           label: "{{ item.run.model_name|escapejs }}",
           values: {
             entailment: {{ item.metrics.best_entailment|default_if_none:0 }},
@@ -700,8 +701,7 @@
         {% endfor %}
       ];
 
-      comparisonRuns.forEach(function (run) {
-        const canvas = document.getElementById(run.id);
+      function buildRadarChart(canvas, label, values) {
         if (!canvas) return;
 
         new Chart(canvas, {
@@ -716,61 +716,14 @@
               "DeepEval Relevancy"
             ],
             datasets: [{
-              label: run.label,
+              label: label,
               data: [
-                run.values.entailment,
-                run.values.similarity,
-                run.values.ragas_faithfulness,
-                run.values.ragas_answer_relevancy,
-                run.values.deepeval_faithfulness,
-                run.values.deepeval_answer_relevancy
-              ],
-              fill: true,
-              borderWidth: 2
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: { display: false }
-            },
-            scales: {
-              r: {
-                min: 0,
-                max: 1,
-                ticks: {
-                  stepSize: 0.2
-                }
-              }
-            }
-          }
-        });
-      });
-
-      {% if run and metrics %}
-      const singleCanvas = document.getElementById("singleResultChart");
-      if (singleCanvas) {
-        new Chart(singleCanvas, {
-          type: "radar",
-          data: {
-            labels: [
-              "Entailment",
-              "Similarity",
-              "RAGAS Faithfulness",
-              "RAGAS Relevancy",
-              "DeepEval Faithfulness",
-              "DeepEval Relevancy"
-            ],
-            datasets: [{
-              label: "Current Run",
-              data: [
-                {{ metrics.best_entailment|default_if_none:0 }},
-                {{ metrics.best_similarity|default_if_none:0 }},
-                {% if metrics.ragas_faithfulness != None %}{{ metrics.ragas_faithfulness }}{% else %}0{% endif %},
-                {% if metrics.ragas_answer_relevancy != None %}{{ metrics.ragas_answer_relevancy }}{% else %}0{% endif %},
-                {% if metrics.deepeval_faithfulness != None %}{{ metrics.deepeval_faithfulness }}{% else %}0{% endif %},
-                {% if metrics.deepeval_answer_relevancy != None %}{{ metrics.deepeval_answer_relevancy }}{% else %}0{% endif %}
+                values.entailment,
+                values.similarity,
+                values.ragas_faithfulness,
+                values.ragas_answer_relevancy,
+                values.deepeval_faithfulness,
+                values.deepeval_answer_relevancy
               ],
               fill: true,
               borderWidth: 2
@@ -794,6 +747,25 @@
           }
         });
       }
+
+      comparisonRuns.forEach(function (run) {
+        const overviewCanvas = document.getElementById(run.id);
+        buildRadarChart(overviewCanvas, run.label, run.values);
+
+        const detailCanvas = document.getElementById(run.detailId);
+        buildRadarChart(detailCanvas, run.label + " Detail", run.values);
+      });
+
+      {% if run and metrics %}
+      const singleCanvas = document.getElementById("singleResultChart");
+      buildRadarChart(singleCanvas, "Current Run", {
+        entailment: {{ metrics.best_entailment|default_if_none:0 }},
+        similarity: {{ metrics.best_similarity|default_if_none:0 }},
+        ragas_faithfulness: {% if metrics.ragas_faithfulness != None %}{{ metrics.ragas_faithfulness }}{% else %}0{% endif %},
+        ragas_answer_relevancy: {% if metrics.ragas_answer_relevancy != None %}{{ metrics.ragas_answer_relevancy }}{% else %}0{% endif %},
+        deepeval_faithfulness: {% if metrics.deepeval_faithfulness != None %}{{ metrics.deepeval_faithfulness }}{% else %}0{% endif %},
+        deepeval_answer_relevancy: {% if metrics.deepeval_answer_relevancy != None %}{{ metrics.deepeval_answer_relevancy }}{% else %}0{% endif %}
+      });
       {% endif %}
     });
   </script>
