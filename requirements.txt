@@ -13,3 +13,4 @@ sentence-transformers==5.2.3
 transformers==4.48.1
 torch
 pdfminer.six==20260107
+PyMuPDF2==1.27.2
