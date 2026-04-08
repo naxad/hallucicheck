@@ -1,0 +1,263 @@
+<!doctype html>
+{% load static %}
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HalluciCheck Dashboard</title>
+
+  <link rel="stylesheet" href="{% static 'verifier/styles.css' %}">
+  <script src="{% static 'verifier/scripts.js' %}" defer></script>
+</head>
+
+<body>
+<div style="position: absolute; top: 20px; right: 20px;">
+  <form method="post" action="{% url 'logout' %}">
+    {% csrf_token %}
+    <button style="
+      background: #5f2cff;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+    ">
+      Logout
+    </button>
+  </form>
+</div>
+<div class="container">
+
+<header class="header">
+  <h1>HalluciCheck Dashboard</h1>
+  <p class="subtitle">Saved evaluations, model comparisons, and risk analysis</p>
+</header>
+
+<!-- ================= FILTERS ================= -->
+<section class="card">
+<form method="GET" action="{% url 'verifier:dashboard' %}" class="dashboard-filters">
+
+<div class="filter-row">
+
+<div class="filter-group">
+<label class="label">Search</label>
+<input class="input" type="text" name="q" value="{{ query }}" placeholder="Question, answer, provider, model...">
+</div>
+
+<div class="filter-group">
+<label class="label">Provider</label>
+<select class="input" name="provider">
+<option value="">All</option>
+<option value="openai" {% if provider_filter == "openai" %}selected{% endif %}>OpenAI</option>
+<option value="gemini" {% if provider_filter == "gemini" %}selected{% endif %}>Gemini</option>
+<option value="anthropic" {% if provider_filter == "anthropic" %}selected{% endif %}>Anthropic</option>
+<option value="manual" {% if provider_filter == "manual" %}selected{% endif %}>Manual</option>
+</select>
+</div>
+
+<div class="filter-group">
+<label class="label">Verdict</label>
+<select class="input" name="verdict">
+<option value="">All</option>
+<option value="SUPPORTED" {% if verdict_filter == "SUPPORTED" %}selected{% endif %}>Supported</option>
+<option value="PARTIAL" {% if verdict_filter == "PARTIAL" %}selected{% endif %}>Partial</option>
+<option value="UNSUPPORTED" {% if verdict_filter == "UNSUPPORTED" %}selected{% endif %}>Unsupported</option>
+</select>
+</div>
+
+<div class="filter-group">
+<label class="label">Sort</label>
+<select class="input" name="sort">
+<option value="newest" {% if sort_filter == "newest" %}selected{% endif %}>Newest</option>
+<option value="oldest" {% if sort_filter == "oldest" %}selected{% endif %}>Oldest</option>
+<option value="risk_desc" {% if sort_filter == "risk_desc" %}selected{% endif %}>Risk ↓</option>
+<option value="confidence_desc" {% if sort_filter == "confidence_desc" %}selected{% endif %}>Confidence ↓</option>
+</select>
+</div>
+
+</div>
+
+<div class="filter-actions">
+<button class="button">Apply Filters</button>
+<a class="button button-secondary" href="{% url 'verifier:dashboard' %}">Clear</a>
+<a class="button button-secondary" href="{% url 'verifier:home' %}">New Verification</a>
+</div>
+
+</form>
+</section>
+
+<!-- ================= CARD VIEW ================= -->
+<section class="card">
+<h2>Saved Runs</h2>
+
+<div class="runs-grid">
+
+{% for row in dashboard_rows %}
+<div class="run-card">
+
+<!-- TOP -->
+<div class="run-header">
+<div>
+<strong>{{ row.run.provider|title }}</strong>
+<span class="muted">{{ row.run.model_name }}</span>
+</div>
+<div class="run-date">
+{{ row.run.created_at|date:"Y-m-d H:i" }}
+</div>
+</div>
+
+<!-- QUESTION -->
+<div class="run-question">
+{{ row.run.question|truncatechars:120 }}
+</div>
+
+<!-- VERDICT -->
+<div class="verdict verdict-{{ row.run.verdict|lower }}">
+{{ row.run.get_verdict_display }}
+</div>
+
+<!-- METRICS -->
+<div class="metric-pills">
+
+<span>Conf {{ row.run.confidence|floatformat:2 }}</span>
+
+<span>
+Risk
+{% if row.risk_percentage != None %}
+{{ row.risk_percentage }}%
+{% else %}—{% endif %}
+</span>
+
+<span>
+R-F
+{% if row.ragas_faithfulness != None %}
+{{ row.ragas_faithfulness|floatformat:2 }}
+{% else %}—{% endif %}
+</span>
+
+<span>
+R-R
+{% if row.ragas_answer_relevancy != None %}
+{{ row.ragas_answer_relevancy|floatformat:2 }}
+{% else %}—{% endif %}
+</span>
+
+<span>
+D-F
+{% if row.deepeval_faithfulness != None %}
+{{ row.deepeval_faithfulness|floatformat:2 }}
+{% else %}—{% endif %}
+</span>
+
+<span>
+D-R
+{% if row.deepeval_answer_relevancy != None %}
+{{ row.deepeval_answer_relevancy|floatformat:2 }}
+{% else %}—{% endif %}
+</span>
+
+<span>
+E
+{% if row.best_entailment != None %}
+{{ row.best_entailment|floatformat:2 }}
+{% else %}—{% endif %}
+</span>
+
+<span>
+S
+{% if row.best_similarity != None %}
+{{ row.best_similarity|floatformat:2 }}
+{% else %}—{% endif %}
+</span>
+
+<span>
+Ev {{ row.evidence_count }}
+</span>
+
+</div>
+
+<!-- ACTION -->
+<a class="button button-secondary" href="{% url 'verifier:home' %}?run={{ row.run.id }}">
+Open Full Analysis →
+</a>
+
+</div>
+{% empty %}
+<p>No runs found.</p>
+{% endfor %}
+
+</div>
+</section>
+
+<!-- ================= FULL TABLE (COLLAPSIBLE) ================= -->
+<section class="card">
+
+<details>
+<summary><strong>Open Full Research Table</strong></summary>
+
+<div class="comparison-summary">
+
+<table class="summary-table">
+
+<thead>
+<tr>
+<th>Date</th>
+<th>Provider</th>
+<th>Model</th>
+<th>Question</th>
+<th>Verdict</th>
+<th>Confidence</th>
+<th>Risk %</th>
+<th>RAGAS F</th>
+<th>RAGAS R</th>
+<th>DeepEval F</th>
+<th>DeepEval R</th>
+<th>Entail</th>
+<th>Sim</th>
+<th>Evidence</th>
+<th>Open</th>
+</tr>
+</thead>
+
+<tbody>
+{% for row in dashboard_rows %}
+<tr>
+<td>{{ row.run.created_at|date:"Y-m-d H:i" }}</td>
+<td>{{ row.run.provider|title }}</td>
+<td>{{ row.run.model_name }}</td>
+<td>{{ row.run.question|truncatechars:60 }}</td>
+<td>{{ row.run.get_verdict_display }}</td>
+<td>{{ row.run.confidence|floatformat:2 }}</td>
+
+<td>{% if row.risk_percentage != None %}{{ row.risk_percentage }}%{% else %}—{% endif %}</td>
+
+<td>{% if row.ragas_faithfulness != None %}{{ row.ragas_faithfulness|floatformat:2 }}{% else %}—{% endif %}</td>
+<td>{% if row.ragas_answer_relevancy != None %}{{ row.ragas_answer_relevancy|floatformat:2 }}{% else %}—{% endif %}</td>
+
+<td>{% if row.deepeval_faithfulness != None %}{{ row.deepeval_faithfulness|floatformat:2 }}{% else %}—{% endif %}</td>
+<td>{% if row.deepeval_answer_relevancy != None %}{{ row.deepeval_answer_relevancy|floatformat:2 }}{% else %}—{% endif %}</td>
+
+<td>{% if row.best_entailment != None %}{{ row.best_entailment|floatformat:2 }}{% else %}—{% endif %}</td>
+<td>{% if row.best_similarity != None %}{{ row.best_similarity|floatformat:2 }}{% else %}—{% endif %}</td>
+
+<td>{{ row.evidence_count }}</td>
+
+<td>
+<a href="{% url 'verifier:home' %}?run={{ row.run.id }}">View</a>
+</td>
+
+</tr>
+{% endfor %}
+</tbody>
+
+</table>
+
+</div>
+
+</details>
+
+</section>
+
+</div>
+</body>
+</html>

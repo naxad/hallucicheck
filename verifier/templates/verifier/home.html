@@ -1,0 +1,802 @@
+<!-- home.html -->
+<!doctype html>
+{% load static %}
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HalluciCheck</title>
+
+  <link rel="stylesheet" href="{% static 'verifier/styles.css' %}">
+  <script src="{% static 'verifier/scripts.js' %}" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+  <div style="position: absolute; top: 20px; right: 20px;">
+    <form method="post" action="{% url 'logout' %}">
+      {% csrf_token %}
+      <button style="
+        background: #5f2cff;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 8px;
+        cursor: pointer;
+      ">
+        Logout
+      </button>
+    </form>
+  </div>
+  
+  <div class="container">
+
+    <header class="header hero-header">
+      <div class="hero-copy">
+        <p class="eyebrow">Evidence-based AI reliability analysis</p>
+        <h1>HalluciCheck</h1>
+        <p class="subtitle">Evidence-based hallucination checking for LLM answers</p>
+      </div>
+      <div class="hero-actions">
+        <a href="{% url 'verifier:dashboard' %}" class="button button-secondary header-button">Open Dashboard</a>
+      </div>
+    </header>
+
+    <section class="card form-card">
+      <div class="section-heading">
+        <div>
+          <h2>New Verification</h2>
+          <p class="section-subtitle">Upload one or more PDFs, ask a question, and verify a pasted answer or compare generated answers across selected models.</p>
+        </div>
+      </div>
+
+      <form action="{% url 'verifier:run_check' %}" method="POST" enctype="multipart/form-data" class="verification-form">
+        {% csrf_token %}
+
+        <div class="form-grid">
+          <div class="form-panel">
+            <label class="label">Mode</label>
+            <div class="mode-toggle segmented-group">
+              <label class="segmented-option">
+                <input type="radio" name="mode" value="manual" checked>
+                <span>Mode 1: Paste an answer</span>
+              </label>
+
+              <label class="segmented-option">
+                <input type="radio" name="mode" value="chat">
+                <span>Mode 2: Chat + Verify</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="form-panel">
+            <label class="label">Models</label>
+            <div class="model-toggle segmented-group segmented-group-multi">
+              <label class="segmented-option">
+                <input type="checkbox" name="selected_models" value="openai:gpt-5.4-mini" checked>
+                <span>OpenAI — GPT-5.4 mini</span>
+              </label>
+
+              <label class="segmented-option">
+                <input type="checkbox" name="selected_models" value="anthropic:claude-sonnet-4-5">
+                <span>Anthropic — Claude Sonnet</span>
+              </label>
+
+              <label class="segmented-option">
+                <input type="checkbox" name="selected_models" value="gemini:gemini-2.5-flash">
+                <span>Google — Gemini Flash</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-grid form-grid-files">
+          <div class="form-panel form-panel-wide">
+            <label class="label">Upload document (PDF)</label>
+            <input class="input input-file" type="file" name="document_files" accept="application/pdf" multiple required>
+          </div>
+        </div>
+
+        <div class="form-grid form-grid-stack">
+          <div class="form-panel form-panel-wide">
+            <label class="label">Question</label>
+            <textarea class="textarea textarea-question" name="question" rows="3"
+              placeholder="Ask a question about the document..." required></textarea>
+          </div>
+
+          <div class="form-panel form-panel-wide" id="answerBlock">
+            <label class="label">LLM Answer</label>
+            <textarea class="textarea textarea-answer" name="answer" rows="6"
+              placeholder="Paste an LLM-generated answer..."></textarea>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button class="button submit-button" type="submit" id="submitBtn">Verify</button>
+        </div>
+      </form>
+    </section>
+
+    {% if comparison_runs %}
+    <section class="card comparison-card">
+      <div class="section-heading">
+        <div>
+          <h2>Model Comparison Results</h2>
+          <p class="section-subtitle">Cross-model evaluation of grounding, faithfulness, retrieval quality, trust score, and evidence support.</p>
+        </div>
+      </div>
+
+      {% if disagreement %}
+      <div class="disagreement-box">
+        <strong>⚠ Model Disagreement:</strong>
+        <p>{{ disagreement }}</p>
+      </div>
+      {% endif %}
+
+      <div class="comparison-overview-grid">
+        {% for item in comparison_runs %}
+        <article class="overview-card">
+          <div class="overview-top">
+            <div>
+              <p class="overview-kicker">{{ item.run.provider|title }}</p>
+              <h3>{{ item.run.model_name }}</h3>
+            </div>
+            <div class="overview-verdict verdict verdict-{{ item.run.verdict|lower }}">
+              <strong>{{ item.run.get_verdict_display }}</strong>
+              {% if item.run.confidence is not None %}
+              <span class="muted">(confidence: {{ item.run.confidence|floatformat:2 }})</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="overview-score-band">
+            <div class="score-tile trust-score-tile">
+              <span class="score-label">Trust Score</span>
+              <span class="score-value">
+                {% if item.metrics.trust_score != None %}
+                  {{ item.metrics.trust_score }}%
+                {% else %}
+                  —
+                {% endif %}
+              </span>
+            </div>
+
+            <div class="score-tile">
+              <span class="score-label">Final Verdict</span>
+              <span class="score-value score-value-small">
+                {% if item.metrics.final_verdict %}
+                  {{ item.metrics.final_verdict }}
+                {% else %}
+                  —
+                {% endif %}
+              </span>
+            </div>
+
+            <div class="score-tile">
+              <span class="score-label">Risk %</span>
+              <span class="score-value score-value-small">{{ item.metrics.risk_percentage }}%</span>
+            </div>
+          </div>
+
+          <div class="metric-pills">
+            <span class="metric-pill">Best Entailment <strong>{{ item.metrics.best_entailment|floatformat:2 }}</strong></span>
+            <span class="metric-pill">Avg Entailment <strong>{{ item.metrics.avg_entailment|floatformat:2 }}</strong></span>
+            <span class="metric-pill">Avg Contradiction <strong>{{ item.metrics.avg_contradiction|floatformat:2 }}</strong></span>
+            <span class="metric-pill">Best Similarity <strong>{{ item.metrics.best_similarity|floatformat:2 }}</strong></span>
+            <span class="metric-pill">Evidence <strong>{{ item.metrics.evidence_count }}</strong></span>
+            <span class="metric-pill">Supports <strong>{{ item.metrics.support_count }}</strong></span>
+            <span class="metric-pill">Contradictions <strong>{{ item.metrics.contradiction_count }}</strong></span>
+            <span class="metric-pill">RAGAS Faithfulness <strong>{% if item.metrics.ragas_faithfulness != None %}{{ item.metrics.ragas_faithfulness|floatformat:2 }}{% else %}—{% endif %}</strong></span>
+            <span class="metric-pill">RAGAS Relevancy <strong>{% if item.metrics.ragas_answer_relevancy != None %}{{ item.metrics.ragas_answer_relevancy|floatformat:2 }}{% else %}—{% endif %}</strong></span>
+            <span class="metric-pill">DeepEval Faithfulness <strong>{% if item.metrics.deepeval_faithfulness != None %}{{ item.metrics.deepeval_faithfulness|floatformat:2 }}{% else %}—{% endif %}</strong></span>
+            <span class="metric-pill">DeepEval Relevancy <strong>{% if item.metrics.deepeval_answer_relevancy != None %}{{ item.metrics.deepeval_answer_relevancy|floatformat:2 }}{% else %}—{% endif %}</strong></span>
+          </div>
+
+          <div class="chart-panel">
+            <div class="chart-panel-header">
+              <h4>Research Metrics Profile</h4>
+              <p>Normalized comparison of internal and external evaluation signals.</p>
+            </div>
+            <div class="chart-wrap">
+              <canvas id="comparisonChart{{ forloop.counter }}"></canvas>
+            </div>
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+
+      <div class="comparison-summary compact-summary-grid">
+        {% for item in comparison_runs %}
+        <article class="summary-card">
+          <div class="summary-card-header">
+            <div>
+              <p class="summary-card-provider">{{ item.run.provider|title }}</p>
+              <h3>{{ item.run.model_name }}</h3>
+            </div>
+            <div class="summary-card-badge verdict verdict-{{ item.run.verdict|lower }}">
+              {{ item.run.get_verdict_display }}
+            </div>
+          </div>
+
+          <div class="summary-card-grid">
+            <div><span>Confidence</span><strong>{{ item.run.confidence|floatformat:2 }}</strong></div>
+            <div><span>Trust Score</span><strong>{% if item.metrics.trust_score != None %}{{ item.metrics.trust_score }}%{% else %}—{% endif %}</strong></div>
+            <div><span>Risk %</span><strong>{{ item.metrics.risk_percentage }}%</strong></div>
+            <div><span>Final Verdict</span><strong>{% if item.metrics.final_verdict %}{{ item.metrics.final_verdict }}{% else %}—{% endif %}</strong></div>
+
+            <div><span>Best Entailment</span><strong>{{ item.metrics.best_entailment|floatformat:2 }}</strong></div>
+            <div><span>Avg Entailment</span><strong>{{ item.metrics.avg_entailment|floatformat:2 }}</strong></div>
+            <div><span>Avg Contradiction</span><strong>{{ item.metrics.avg_contradiction|floatformat:2 }}</strong></div>
+            <div><span>Best Similarity</span><strong>{{ item.metrics.best_similarity|floatformat:2 }}</strong></div>
+
+            <div><span>Evidence</span><strong>{{ item.metrics.evidence_count }}</strong></div>
+            <div><span>Supports</span><strong>{{ item.metrics.support_count }}</strong></div>
+            <div><span>Contradictions</span><strong>{{ item.metrics.contradiction_count }}</strong></div>
+            <div><span>RAGAS Faithfulness</span><strong>{% if item.metrics.ragas_faithfulness != None %}{{ item.metrics.ragas_faithfulness|floatformat:2 }}{% else %}—{% endif %}</strong></div>
+
+            <div><span>RAGAS Relevancy</span><strong>{% if item.metrics.ragas_answer_relevancy != None %}{{ item.metrics.ragas_answer_relevancy|floatformat:2 }}{% else %}—{% endif %}</strong></div>
+            <div><span>DeepEval Faithfulness</span><strong>{% if item.metrics.deepeval_faithfulness != None %}{{ item.metrics.deepeval_faithfulness|floatformat:2 }}{% else %}—{% endif %}</strong></div>
+            <div><span>DeepEval Relevancy</span><strong>{% if item.metrics.deepeval_answer_relevancy != None %}{{ item.metrics.deepeval_answer_relevancy|floatformat:2 }}{% else %}—{% endif %}</strong></div>
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+
+      <div class="comparison-summary table-shell">
+        <div class="table-shell-header">
+          <h3>Full Metrics Table</h3>
+          <p>Scrollable research table retained for complete inspection and export-friendly review.</p>
+        </div>
+
+        <div class="table-scroll">
+          <table class="summary-table">
+            <thead>
+              <tr>
+                <th>Provider</th>
+                <th>Model</th>
+                <th>Verdict</th>
+                <th>Confidence</th>
+                <th>Best Entailment</th>
+                <th>Avg Entailment</th>
+                <th>Avg Contradiction</th>
+                <th>Best Similarity</th>
+                <th>Evidence</th>
+                <th>Supports</th>
+                <th>Contradictions</th>
+                <th>RAGAS Faithfulness</th>
+                <th>RAGAS Relevancy</th>
+                <th>DeepEval Faithfulness</th>
+                <th>DeepEval Relevancy</th>
+                <th>Trust Score</th>
+                <th>Final Verdict</th>
+                <th>Risk %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in comparison_runs %}
+              <tr>
+                <td>{{ item.run.provider|title }}</td>
+                <td>{{ item.run.model_name }}</td>
+                <td>{{ item.run.get_verdict_display }}</td>
+                <td>{{ item.run.confidence|floatformat:2 }}</td>
+                <td>{{ item.metrics.best_entailment|floatformat:2 }}</td>
+                <td>{{ item.metrics.avg_entailment|floatformat:2 }}</td>
+                <td>{{ item.metrics.avg_contradiction|floatformat:2 }}</td>
+                <td>{{ item.metrics.best_similarity|floatformat:2 }}</td>
+                <td>{{ item.metrics.evidence_count }}</td>
+                <td>{{ item.metrics.support_count }}</td>
+                <td>{{ item.metrics.contradiction_count }}</td>
+
+                <td>
+                  {% if item.metrics.ragas_faithfulness != None %}
+                    {{ item.metrics.ragas_faithfulness|floatformat:2 }}
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+                <td>
+                  {% if item.metrics.ragas_answer_relevancy != None %}
+                    {{ item.metrics.ragas_answer_relevancy|floatformat:2 }}
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+
+                <td>
+                  {% if item.metrics.deepeval_faithfulness != None %}
+                    {{ item.metrics.deepeval_faithfulness|floatformat:2 }}
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+                <td>
+                  {% if item.metrics.deepeval_answer_relevancy != None %}
+                    {{ item.metrics.deepeval_answer_relevancy|floatformat:2 }}
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+
+                <td>
+                  {% if item.metrics.trust_score != None %}
+                    {{ item.metrics.trust_score }}%
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+                <td>
+                  {% if item.metrics.final_verdict %}
+                    {{ item.metrics.final_verdict }}
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+
+                <td>{{ item.metrics.risk_percentage }}%</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {% for item in comparison_runs %}
+      <article class="card result-card comparison-detail-card">
+        <div class="result-topbar">
+          <div class="result-heading">
+            <h3>{{ item.run.provider|title }} — {{ item.run.model_name }}</h3>
+            <p class="section-subtitle">Detailed answer, explanation, granular metrics, and evidence review.</p>
+          </div>
+
+          <div class="result-status-block">
+            <div class="verdict verdict-{{ item.run.verdict|lower }}">
+              <strong>Verdict:</strong> {{ item.run.get_verdict_display }}
+              {% if item.run.confidence is not None %}
+              <span class="muted"> (confidence: {{ item.run.confidence|floatformat:2 }})</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-layout">
+          <div class="detail-main">
+            <div class="trust-box">
+              <strong>Trust Score:</strong>
+              {% if item.metrics.trust_score != None %}
+                {{ item.metrics.trust_score }}%
+              {% else %}
+                —
+              {% endif %}
+              <br>
+              <strong>Final Verdict:</strong>
+              {% if item.metrics.final_verdict %}
+                {{ item.metrics.final_verdict }}
+              {% else %}
+                —
+              {% endif %}
+            </div>
+
+            <div class="explanation-box">
+              <strong>Explanation:</strong>
+              <p>
+                {% if item.metrics.explanation %}
+                  {{ item.metrics.explanation }}
+                {% else %}
+                  —
+                {% endif %}
+              </p>
+            </div>
+
+            <div class="generated-answer">
+              <h4>Answer</h4>
+              <p>{{ item.run.answer }}</p>
+            </div>
+
+            <div class="detail-chart-card">
+              <div class="chart-panel-header">
+                <h4>Metric Distribution</h4>
+                <p>Side-by-side signal view for trust, grounding, retrieval, and evaluation frameworks.</p>
+              </div>
+              <div class="chart-wrap chart-wrap-detail">
+                <canvas id="detailChart{{ forloop.counter }}"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <aside class="detail-sidebar">
+            <div class="sidebar-metric-list">
+              <div class="sidebar-metric-item"><span>Best Entailment</span><strong>{{ item.metrics.best_entailment|floatformat:2 }}</strong></div>
+              <div class="sidebar-metric-item"><span>Avg Entailment</span><strong>{{ item.metrics.avg_entailment|floatformat:2 }}</strong></div>
+              <div class="sidebar-metric-item"><span>Avg Contradiction</span><strong>{{ item.metrics.avg_contradiction|floatformat:2 }}</strong></div>
+              <div class="sidebar-metric-item"><span>Best Similarity</span><strong>{{ item.metrics.best_similarity|floatformat:2 }}</strong></div>
+              <div class="sidebar-metric-item"><span>Evidence Chunks</span><strong>{{ item.metrics.evidence_count }}</strong></div>
+              <div class="sidebar-metric-item"><span>Supports</span><strong>{{ item.metrics.support_count }}</strong></div>
+              <div class="sidebar-metric-item"><span>Contradictions</span><strong>{{ item.metrics.contradiction_count }}</strong></div>
+              <div class="sidebar-metric-item"><span>RAGAS Faithfulness</span><strong>{% if item.metrics.ragas_faithfulness != None %}{{ item.metrics.ragas_faithfulness|floatformat:2 }}{% else %}—{% endif %}</strong></div>
+              <div class="sidebar-metric-item"><span>RAGAS Relevancy</span><strong>{% if item.metrics.ragas_answer_relevancy != None %}{{ item.metrics.ragas_answer_relevancy|floatformat:2 }}{% else %}—{% endif %}</strong></div>
+              <div class="sidebar-metric-item"><span>DeepEval Faithfulness</span><strong>{% if item.metrics.deepeval_faithfulness != None %}{{ item.metrics.deepeval_faithfulness|floatformat:2 }}{% else %}—{% endif %}</strong></div>
+              <div class="sidebar-metric-item"><span>DeepEval Relevancy</span><strong>{% if item.metrics.deepeval_answer_relevancy != None %}{{ item.metrics.deepeval_answer_relevancy|floatformat:2 }}{% else %}—{% endif %}</strong></div>
+              <div class="sidebar-metric-item"><span>Risk</span><strong>{{ item.metrics.risk_percentage }}%</strong></div>
+            </div>
+          </aside>
+        </div>
+
+        <div class="evidence-section">
+          <div class="section-heading evidence-heading">
+            <div>
+              <h4>Top Evidence Chunks</h4>
+              <p class="section-subtitle">Highlighted supporting, neutral, or contradictory evidence spans retrieved from the uploaded documents.</p>
+            </div>
+          </div>
+
+          <ol class="chunk-list">
+            {% for c in item.chunks %}
+            <li class="chunk
+              {% if c.is_best %}best{% endif %}
+              {% if c.entailment >= 0.7 %}chunk-supported{% elif c.contradiction >= 0.4 %}chunk-contradiction{% else %}chunk-neutral{% endif %}">
+              <div class="chunk-meta">
+                <span><strong>Rank {{ c.rank }}</strong></span>
+                <span class="muted">Source: {{ c.source_name }}</span>
+                <span class="muted">sim={{ c.similarity_score|floatformat:3 }}</span>
+
+                {% if c.entailment is not None %}
+                <span class="muted">E={{ c.entailment|floatformat:2 }}</span>
+                <span class="muted">N={{ c.neutral|floatformat:2 }}</span>
+                <span class="muted">C={{ c.contradiction|floatformat:2 }}</span>
+                {% endif %}
+              </div>
+
+              <div class="chunk-text highlighted-chunk">{{ c.highlighted_html|safe }}</div>
+            </li>
+            {% endfor %}
+          </ol>
+        </div>
+      </article>
+      {% endfor %}
+    </section>
+    {% endif %}
+
+    {% if run %}
+    <section class="card result-card">
+      <div class="section-heading">
+        <div>
+          <h2>Result</h2>
+          <p class="section-subtitle">Single-run evaluation summary, explanation, and evidence audit trail.</p>
+        </div>
+      </div>
+
+      <div class="result-topbar">
+        <div class="result-status-block">
+          <div class="verdict verdict-{{ run.verdict|lower }}">
+            <strong>Verdict:</strong> {{ run.get_verdict_display }}
+            {% if run.confidence is not None %}
+            <span class="muted"> (confidence: {{ run.confidence|floatformat:2 }})</span>
+            {% endif %}
+          </div>
+        </div>
+
+        {% if metrics %}
+        <div class="score-hero">
+          <span class="score-hero-label">Trust Score</span>
+          <span class="score-hero-value">
+            {% if metrics.trust_score != None %}
+              {{ metrics.trust_score }}%
+            {% else %}
+              —
+            {% endif %}
+          </span>
+          <span class="score-hero-subtitle">
+            {% if metrics.final_verdict %}
+              {{ metrics.final_verdict }}
+            {% else %}
+              —
+            {% endif %}
+          </span>
+        </div>
+        {% endif %}
+      </div>
+
+      {% if metrics %}
+      <div class="single-result-layout">
+        <div class="single-result-main">
+          <div class="trust-box">
+            <strong>Trust Score:</strong>
+            {% if metrics.trust_score != None %}
+              {{ metrics.trust_score }}%
+            {% else %}
+              —
+            {% endif %}
+            <br>
+            <strong>Final Verdict:</strong>
+            {% if metrics.final_verdict %}
+              {{ metrics.final_verdict }}
+            {% else %}
+              —
+            {% endif %}
+          </div>
+
+          <div class="explanation-box">
+            <strong>Explanation:</strong>
+            <p>
+              {% if metrics.explanation %}
+                {{ metrics.explanation }}
+              {% else %}
+                —
+              {% endif %}
+            </p>
+          </div>
+
+          <div class="detail-chart-card">
+            <div class="chart-panel-header">
+              <h4>Single-Run Metric Distribution</h4>
+              <p>Comparative view of internal grounding signals and external evaluation frameworks.</p>
+            </div>
+            <div class="chart-wrap chart-wrap-detail">
+              <canvas id="singleResultChart"></canvas>
+            </div>
+          </div>
+
+          <div class="comparison-summary table-shell compact-shell">
+            <div class="table-shell-header">
+              <h3>Metric Snapshot</h3>
+              <p>Condensed quantitative view of the current run.</p>
+            </div>
+
+            <div class="table-scroll">
+              <table class="summary-table">
+                <thead>
+                  <tr>
+                    <th>Best Entailment</th>
+                    <th>Avg Entailment</th>
+                    <th>Avg Contradiction</th>
+                    <th>Best Similarity</th>
+                    <th>Evidence</th>
+                    <th>Supports</th>
+                    <th>Contradictions</th>
+                    <th>RAGAS Faithfulness</th>
+                    <th>RAGAS Relevancy</th>
+                    <th>DeepEval Faithfulness</th>
+                    <th>DeepEval Relevancy</th>
+                    <th>Trust Score</th>
+                    <th>Final Verdict</th>
+                    <th>Risk %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>{{ metrics.best_entailment|floatformat:2 }}</td>
+                    <td>{{ metrics.avg_entailment|floatformat:2 }}</td>
+                    <td>{{ metrics.avg_contradiction|floatformat:2 }}</td>
+                    <td>{{ metrics.best_similarity|floatformat:2 }}</td>
+                    <td>{{ metrics.evidence_count }}</td>
+                    <td>{{ metrics.support_count }}</td>
+                    <td>{{ metrics.contradiction_count }}</td>
+
+                    <td>
+                      {% if metrics.ragas_faithfulness != None %}
+                        {{ metrics.ragas_faithfulness|floatformat:2 }}
+                      {% else %}
+                        —
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if metrics.ragas_answer_relevancy != None %}
+                        {{ metrics.ragas_answer_relevancy|floatformat:2 }}
+                      {% else %}
+                        —
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if metrics.deepeval_faithfulness != None %}
+                        {{ metrics.deepeval_faithfulness|floatformat:2 }}
+                      {% else %}
+                        —
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if metrics.deepeval_answer_relevancy != None %}
+                        {{ metrics.deepeval_answer_relevancy|floatformat:2 }}
+                      {% else %}
+                        —
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if metrics.trust_score != None %}
+                        {{ metrics.trust_score }}%
+                      {% else %}
+                        —
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if metrics.final_verdict %}
+                        {{ metrics.final_verdict }}
+                      {% else %}
+                        —
+                      {% endif %}
+                    </td>
+                    <td>{{ metrics.risk_percentage }}%</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="generated-answer">
+            <h3>Answer</h3>
+            <p>{{ run.answer }}</p>
+          </div>
+        </div>
+
+        <aside class="single-result-sidebar">
+          <div class="sidebar-metric-list">
+            <div class="sidebar-metric-item"><span>Best Entailment</span><strong>{{ metrics.best_entailment|floatformat:2 }}</strong></div>
+            <div class="sidebar-metric-item"><span>Avg Entailment</span><strong>{{ metrics.avg_entailment|floatformat:2 }}</strong></div>
+            <div class="sidebar-metric-item"><span>Avg Contradiction</span><strong>{{ metrics.avg_contradiction|floatformat:2 }}</strong></div>
+            <div class="sidebar-metric-item"><span>Best Similarity</span><strong>{{ metrics.best_similarity|floatformat:2 }}</strong></div>
+            <div class="sidebar-metric-item"><span>Evidence</span><strong>{{ metrics.evidence_count }}</strong></div>
+            <div class="sidebar-metric-item"><span>Supports</span><strong>{{ metrics.support_count }}</strong></div>
+            <div class="sidebar-metric-item"><span>Contradictions</span><strong>{{ metrics.contradiction_count }}</strong></div>
+            <div class="sidebar-metric-item"><span>RAGAS Faithfulness</span><strong>{% if metrics.ragas_faithfulness != None %}{{ metrics.ragas_faithfulness|floatformat:2 }}{% else %}—{% endif %}</strong></div>
+            <div class="sidebar-metric-item"><span>RAGAS Relevancy</span><strong>{% if metrics.ragas_answer_relevancy != None %}{{ metrics.ragas_answer_relevancy|floatformat:2 }}{% else %}—{% endif %}</strong></div>
+            <div class="sidebar-metric-item"><span>DeepEval Faithfulness</span><strong>{% if metrics.deepeval_faithfulness != None %}{{ metrics.deepeval_faithfulness|floatformat:2 }}{% else %}—{% endif %}</strong></div>
+            <div class="sidebar-metric-item"><span>DeepEval Relevancy</span><strong>{% if metrics.deepeval_answer_relevancy != None %}{{ metrics.deepeval_answer_relevancy|floatformat:2 }}{% else %}—{% endif %}</strong></div>
+            <div class="sidebar-metric-item"><span>Risk</span><strong>{{ metrics.risk_percentage }}%</strong></div>
+          </div>
+        </aside>
+      </div>
+      {% endif %}
+
+      <div class="evidence-section">
+        <div class="section-heading evidence-heading">
+          <div>
+            <h3>Top Evidence Chunks</h3>
+            <p class="section-subtitle">Evidence spans are retained exactly as before, with highlighting and source metadata.</p>
+          </div>
+        </div>
+
+        <ol class="chunk-list">
+          {% for c in chunks %}
+          <li class="chunk
+            {% if c.is_best %}best{% endif %}
+            {% if c.entailment >= 0.7 %}chunk-supported{% elif c.contradiction >= 0.4 %}chunk-contradiction{% else %}chunk-neutral{% endif %}">
+            <div class="chunk-meta">
+              <span><strong>Rank {{ c.rank }}</strong></span>
+              <span class="muted">Source: {{ c.source_name }}</span>
+              <span class="muted">sim={{ c.similarity_score|floatformat:3 }}</span>
+
+              {% if c.entailment is not None %}
+              <span class="muted">E={{ c.entailment|floatformat:2 }}</span>
+              <span class="muted">N={{ c.neutral|floatformat:2 }}</span>
+              <span class="muted">C={{ c.contradiction|floatformat:2 }}</span>
+              {% endif %}
+            </div>
+
+            <div class="chunk-text highlighted-chunk">{{ c.highlighted_html|safe }}</div>
+          </li>
+          {% endfor %}
+        </ol>
+      </div>
+    </section>
+    {% endif %}
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const comparisonRuns = [
+        {% for item in comparison_runs %}
+        {
+          id: "comparisonChart{{ forloop.counter }}",
+          label: "{{ item.run.model_name|escapejs }}",
+          values: {
+            entailment: {{ item.metrics.best_entailment|default_if_none:0 }},
+            similarity: {{ item.metrics.best_similarity|default_if_none:0 }},
+            ragas_faithfulness: {% if item.metrics.ragas_faithfulness != None %}{{ item.metrics.ragas_faithfulness }}{% else %}0{% endif %},
+            ragas_answer_relevancy: {% if item.metrics.ragas_answer_relevancy != None %}{{ item.metrics.ragas_answer_relevancy }}{% else %}0{% endif %},
+            deepeval_faithfulness: {% if item.metrics.deepeval_faithfulness != None %}{{ item.metrics.deepeval_faithfulness }}{% else %}0{% endif %},
+            deepeval_answer_relevancy: {% if item.metrics.deepeval_answer_relevancy != None %}{{ item.metrics.deepeval_answer_relevancy }}{% else %}0{% endif %}
+          }
+        }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+      ];
+
+      comparisonRuns.forEach(function (run) {
+        const canvas = document.getElementById(run.id);
+        if (!canvas) return;
+
+        new Chart(canvas, {
+          type: "radar",
+          data: {
+            labels: [
+              "Entailment",
+              "Similarity",
+              "RAGAS Faithfulness",
+              "RAGAS Relevancy",
+              "DeepEval Faithfulness",
+              "DeepEval Relevancy"
+            ],
+            datasets: [{
+              label: run.label,
+              data: [
+                run.values.entailment,
+                run.values.similarity,
+                run.values.ragas_faithfulness,
+                run.values.ragas_answer_relevancy,
+                run.values.deepeval_faithfulness,
+                run.values.deepeval_answer_relevancy
+              ],
+              fill: true,
+              borderWidth: 2
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false }
+            },
+            scales: {
+              r: {
+                min: 0,
+                max: 1,
+                ticks: {
+                  stepSize: 0.2
+                }
+              }
+            }
+          }
+        });
+      });
+
+      {% if run and metrics %}
+      const singleCanvas = document.getElementById("singleResultChart");
+      if (singleCanvas) {
+        new Chart(singleCanvas, {
+          type: "radar",
+          data: {
+            labels: [
+              "Entailment",
+              "Similarity",
+              "RAGAS Faithfulness",
+              "RAGAS Relevancy",
+              "DeepEval Faithfulness",
+              "DeepEval Relevancy"
+            ],
+            datasets: [{
+              label: "Current Run",
+              data: [
+                {{ metrics.best_entailment|default_if_none:0 }},
+                {{ metrics.best_similarity|default_if_none:0 }},
+                {% if metrics.ragas_faithfulness != None %}{{ metrics.ragas_faithfulness }}{% else %}0{% endif %},
+                {% if metrics.ragas_answer_relevancy != None %}{{ metrics.ragas_answer_relevancy }}{% else %}0{% endif %},
+                {% if metrics.deepeval_faithfulness != None %}{{ metrics.deepeval_faithfulness }}{% else %}0{% endif %},
+                {% if metrics.deepeval_answer_relevancy != None %}{{ metrics.deepeval_answer_relevancy }}{% else %}0{% endif %}
+              ],
+              fill: true,
+              borderWidth: 2
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false }
+            },
+            scales: {
+              r: {
+                min: 0,
+                max: 1,
+                ticks: {
+                  stepSize: 0.2
+                }
+              }
+            }
+          }
+        });
+      }
+      {% endif %}
+    });
+  </script>
+</body>
+
+</html>
