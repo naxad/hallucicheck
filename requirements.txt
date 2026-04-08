@@ -266,3 +266,4 @@ yarl==1.18.3
 yfinance==0.2.38
 zopfli==0.2.3.post1
 zstandard==0.25.0
+setuptools<82
