@@ -1,7 +1,3 @@
-Love this — this project actually deserves a strong README (especially for your AI/fintech goals 👀).
-I’ll make it clean, impressive, and recruiter-level, not just basic.
-
-⸻
 
 🚀 HalluciCheck
 
