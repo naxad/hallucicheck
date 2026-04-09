@@ -701,30 +701,39 @@
         {% endfor %}
       ];
 
+      function metricValues(values) {
+        return [
+          values.entailment,
+          values.similarity,
+          values.ragas_faithfulness,
+          values.ragas_answer_relevancy,
+          values.deepeval_faithfulness,
+          values.deepeval_answer_relevancy
+        ];
+      }
+
+      function metricLabels() {
+        return [
+          "Entailment",
+          "Similarity",
+          "RAGAS Faithfulness",
+          "RAGAS Relevancy",
+          "DeepEval Faithfulness",
+          "DeepEval Relevancy"
+        ];
+      }
+
       function buildRadarChart(canvas, label, values) {
         if (!canvas) return;
+        console.log("RADAR CHART:", canvas.id);
 
         new Chart(canvas, {
           type: "radar",
           data: {
-            labels: [
-              "Entailment",
-              "Similarity",
-              "RAGAS Faithfulness",
-              "RAGAS Relevancy",
-              "DeepEval Faithfulness",
-              "DeepEval Relevancy"
-            ],
+            labels: metricLabels(),
             datasets: [{
               label: label,
-              data: [
-                values.entailment,
-                values.similarity,
-                values.ragas_faithfulness,
-                values.ragas_answer_relevancy,
-                values.deepeval_faithfulness,
-                values.deepeval_answer_relevancy
-              ],
+              data: metricValues(values),
               fill: true,
               borderWidth: 2
             }]
@@ -733,7 +742,11 @@
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-              legend: { display: false }
+              legend: { display: false },
+              title: {
+                display: true,
+                text: "RADAR"
+              }
             },
             scales: {
               r: {
@@ -750,29 +763,24 @@
 
       function buildBarChart(canvas, label, values) {
         if (!canvas) return;
+        console.log("BAR CHART:", canvas.id);
 
         new Chart(canvas, {
           type: "bar",
           data: {
-            labels: [
-              "Entailment",
-              "Similarity",
-              "RAGAS Faithfulness",
-              "RAGAS Relevancy",
-              "DeepEval Faithfulness",
-              "DeepEval Relevancy"
-            ],
+            labels: metricLabels(),
             datasets: [{
               label: label,
-              data: [
-                values.entailment,
-                values.similarity,
-                values.ragas_faithfulness,
-                values.ragas_answer_relevancy,
-                values.deepeval_faithfulness,
-                values.deepeval_answer_relevancy
-              ],
-              borderWidth: 1
+              data: metricValues(values),
+              borderWidth: 1,
+              backgroundColor: [
+                "rgba(0,0,0,0.85)",
+                "rgba(40,40,40,0.85)",
+                "rgba(80,80,80,0.85)",
+                "rgba(120,120,120,0.85)",
+                "rgba(160,160,160,0.85)",
+                "rgba(200,200,200,0.85)"
+              ]
             }]
           },
           options: {
@@ -780,7 +788,11 @@
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-              legend: { display: false }
+              legend: { display: false },
+              title: {
+                display: true,
+                text: "BAR"
+              }
             },
             scales: {
               x: {

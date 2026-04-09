@@ -27,15 +27,29 @@ def evaluate_with_deepeval(question: str, answer: str, contexts: list[str]) -> d
             verbose_mode=False,
         )
 
-        faithfulness_metric.measure(test_case)
-        answer_relevancy_metric.measure(test_case)
+        faithfulness_score = None
+        answer_relevancy_score = None
 
-        print("DEEPEVAL FAITHFULNESS SCORE:", faithfulness_metric.score)
-        print("DEEPEVAL ANSWER RELEVANCY SCORE:", answer_relevancy_metric.score)
+        try:
+            faithfulness_metric.measure(test_case)
+            if faithfulness_metric.score is not None:
+                faithfulness_score = float(faithfulness_metric.score)
+        except Exception as e:
+            print("DEEPEVAL FAITHFULNESS ERROR:", repr(e))
+
+        try:
+            answer_relevancy_metric.measure(test_case)
+            if answer_relevancy_metric.score is not None:
+                answer_relevancy_score = float(answer_relevancy_metric.score)
+        except Exception as e:
+            print("DEEPEVAL ANSWER RELEVANCY ERROR:", repr(e))
+
+        print("DEEPEVAL FAITHFULNESS SCORE:", faithfulness_score)
+        print("DEEPEVAL ANSWER RELEVANCY SCORE:", answer_relevancy_score)
 
         return {
-            "deepeval_faithfulness": float(faithfulness_metric.score) if faithfulness_metric.score is not None else None,
-            "deepeval_answer_relevancy": float(answer_relevancy_metric.score) if answer_relevancy_metric.score is not None else None,
+            "deepeval_faithfulness": faithfulness_score,
+            "deepeval_answer_relevancy": answer_relevancy_score,
         }
 
     except Exception as e:

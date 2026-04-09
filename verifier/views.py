@@ -3,11 +3,7 @@ from django.views.decorators.http import require_http_methods
 import uuid
 
 from .models import Document, EvaluationRun, EvidenceChunk
-from .services.pipeline import (
-    run_pipeline,
-    prepare_document_chunks,
-    retrieve_evidence_chunks,
-)
+
 from .services.llm_answer import generate_answer
 from .services.metrics import compute_run_metrics, compute_trust_score, generate_explanation, detect_model_disagreement
 from .services.highlighting import highlight_chunk_sentences
@@ -18,7 +14,7 @@ from django.db.models import Q
 from .services.deepeval_eval import evaluate_with_deepeval
 
 from django.contrib.auth.decorators import login_required
-
+import math
 
 @login_required
 def home(request):
@@ -206,6 +202,9 @@ def dashboard(request):
 @login_required
 @require_http_methods(["POST"])
 def run_check(request):
+    
+    from .services.pipeline import (run_pipeline, prepare_document_chunks, retrieve_evidence_chunks, )
+
     doc_files = request.FILES.getlist("document_files")
     question = request.POST.get("question", "").strip()
     answer = request.POST.get("answer", "").strip()
@@ -334,6 +333,10 @@ def run_check(request):
 
         metrics.update(ragas_scores)
         metrics.update(deepeval_scores)
+
+        for key, value in list(metrics.items()):
+            if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+                metrics[key] = None
 
         trust = compute_trust_score(metrics)
         metrics.update(trust)
@@ -497,7 +500,9 @@ def run_check(request):
 
         metrics.update(ragas_scores)
         metrics.update(deepeval_scores)
-
+        for key, value in list(metrics.items()):
+            if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+                metrics[key] = None
         trust = compute_trust_score(metrics)
         metrics.update(trust)
         explanation = generate_explanation(metrics)

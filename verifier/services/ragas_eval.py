@@ -13,11 +13,12 @@ def _clean_score(value):
     if value is None:
         return None
     try:
-        if math.isnan(value):
+        value = float(value)
+        if math.isnan(value) or math.isinf(value):
             return None
-    except TypeError:
-        pass
-    return float(value)
+        return value
+    except Exception:
+        return None
 
 
 def evaluate_with_ragas(question: str, answer: str, contexts: list[str]) -> dict:
